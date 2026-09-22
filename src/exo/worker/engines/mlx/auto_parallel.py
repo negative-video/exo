@@ -160,7 +160,12 @@ class PipelineLastLayer(CustomMlxLayer):
             x, *args, **kwargs
         ).arguments.get("cache", None)
 
-        output: mx.array = self.original_layer(x, *args, **kwargs)
+        result = self.original_layer(x, *args, **kwargs)
+        # DSA models (GLM MoE DSA, DeepSeek V3.2) return (h, topk_indices).
+        # Only h crosses the pipeline boundary; topk is recomputed or falls
+        # back to dense on the next rank.
+        is_tuple = isinstance(result, tuple)
+        output: mx.array = result[0] if is_tuple else result
 
         # Eval layer output to materialize it before send — this splits the graph
         # so the send is isolated and the receiving rank's recv can complete.
@@ -191,7 +196,7 @@ class PipelineLastLayer(CustomMlxLayer):
             ]
             mx.eval(output)
 
-        return output
+            return (output, *result[1:]) if is_tuple else output
 
 
 def set_pipeline_prefill(model: nn.Module, is_prefill: bool) -> None:
