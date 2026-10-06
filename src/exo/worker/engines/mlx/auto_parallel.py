@@ -196,7 +196,7 @@ class PipelineLastLayer(CustomMlxLayer):
             ]
             mx.eval(output)
 
-            return (output, *result[1:]) if is_tuple else output
+        return (output, *result[1:]) if is_tuple else output
 
 
 def set_pipeline_prefill(model: nn.Module, is_prefill: bool) -> None:
@@ -662,17 +662,13 @@ def _set_layers(model: nn.Module, layers: list[_LayerCallable]) -> None:
     if hasattr(inner_model_instance, "layers"):
         inner_model_instance.layers = layers
 
-        # Update DeepSeek V3 specific parameters when layers are shrunk
-        if isinstance(
-            model,
-            (
-                DeepseekV3Model,
-                DeepseekV32Model,
-                DeepseekV4Model,
-                Glm4MoeModel,
-                KimiK25Model,
-            ),
-        ) and hasattr(inner_model_instance, "num_layers"):
+        # Reset layer bounds when layers are shrunk. Duck-typed so that
+        # repo-bundled runtimes (config.json `model_file`, e.g. GLM-5.2's
+        # glm_moe_dsa.py) that don't subclass mlx-lm's models are covered too.
+        if all(
+            hasattr(inner_model_instance, attribute)
+            for attribute in ("num_layers", "start_idx", "end_idx")
+        ):
             logger.info(
                 f"Setting num_layers to {len(layers)} for model {model.model.__class__.__name__}"
             )
