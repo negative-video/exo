@@ -1,0 +1,14 @@
+# Same values POST /models/add derives from the Hugging Face repo. Kept as a
+# built-in card so the model survives exo restarts and needs no HF access.
+model_id = "mlx-community/MiMo-V2.6-Pro-RL-mxfp4-q8"
+n_layers = 70
+hidden_size = 6144
+num_key_value_heads = 8
+supports_tensor = false
+tasks = ["TextGeneration"]
+context_length = 1048576
+trust_remote_code = false
+backends = ["MlxMetal", "MlxCpu", "MlxCuda", "Vllm"]
+
+[storage_size]
+in_bytes = 553878440448

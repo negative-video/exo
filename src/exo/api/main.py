@@ -355,7 +355,7 @@ class API:
         self.app.delete("/v1/instance-links/{link_id}")(self.delete_instance_link)
         self.app.get("/v1/feature-flags")(self.get_feature_flags)
         self.app.get("/models")(self.get_models)
-        self.app.get("/v1/models")(self.get_models)
+        self.app.get("/v1/models")(self.get_running_models)
         self.app.post("/models/add")(self.add_custom_model)
         self.app.delete("/models/custom/{model_id:path}")(self.delete_custom_model)
         self.app.get("/models/search")(self.search_models)
@@ -1784,7 +1784,7 @@ class API:
         return total_available
 
     async def get_models(self, status: str | None = Query(default=None)) -> ModelList:
-        """Returns list of available models, optionally filtered by being downloaded."""
+        """Returns list of available models, optionally filtered to downloaded or running ones."""
         cards = await model_cards.card_cache.list_all()
 
         if status == "downloaded":
@@ -1794,6 +1794,12 @@ class API:
                     if isinstance(dl, DownloadCompleted):
                         downloaded_model_ids.add(dl.shard_metadata.model_card.model_id)
             cards = [c for c in cards if c.model_id in downloaded_model_ids]
+        elif status == "running":
+            running_model_ids = {
+                instance.shard_assignments.model_id
+                for instance in self.state.instances.values()
+            }
+            cards = [await ModelCard.load(m) for m in sorted(running_model_ids)]
 
         return ModelList(
             data=[
@@ -1817,6 +1823,15 @@ class API:
                 for card in cards
             ]
         )
+
+    async def get_running_models(self) -> ModelList:
+        """OpenAI-compatible model list: only models with an instance.
+
+        A chat request for any other model returns 404, so listing the whole
+        registry only gives frontends a menu of models that cannot answer.
+        The dashboard uses /models, which still lists everything.
+        """
+        return await self.get_models(status="running")
 
     async def add_custom_model(self, payload: AddCustomModelParams) -> ModelListModel:
         """Fetch a model from HuggingFace and save as a custom model card, then sync across the cluster."""
