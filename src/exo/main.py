@@ -156,6 +156,9 @@ class Node:
         async with self._tg as tg:
             signal.signal(signal.SIGINT, lambda _, __: self.shutdown())
             signal.signal(signal.SIGTERM, lambda _, __: self.shutdown())
+            # A dropped SSH session (or the launchd service stopping) hangs up the
+            # terminal. Shut down cleanly instead of dying mid-flight.
+            signal.signal(signal.SIGHUP, lambda _, __: self.hangup())
             tg.start_soon(self.router.run)
             tg.start_soon(self.event_router.run)
             tg.start_soon(self.election.run)
@@ -176,6 +179,12 @@ class Node:
 
             sys.exit(1)
         self._tg.cancel_tasks()
+
+    def hangup(self):
+        # SIGHUP can arrive more than once (kernel and parent shell), so unlike a
+        # second Ctrl-C it never escalates to a hard exit.
+        if not self._tg.cancel_called():
+            self.shutdown()
 
     async def _elect_loop(self):
         with self.election_result_receiver as results:
