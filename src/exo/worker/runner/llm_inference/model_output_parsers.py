@@ -457,13 +457,13 @@ def parse_tool_calls(
             tool_call_text_parts = []
 
             if parsed is None:
+                # What the model wrote isn't a tool call we can read: give it back as text, as
+                # other OpenAI-compatible servers do, rather than failing the request
                 logger.warning(
                     f"tool call parsing failed for {len(combined)} characters of output"
                 )
-                yield response.model_copy(
-                    update={"text": combined, "token": 0, "finish_reason": "error"}
-                )
-                break
+                yield response.model_copy(update={"text": combined, "token": 0})
+                continue
 
             logger.info(f"parsed {len(parsed)} tool call(s)")
             accumulated_tool_calls.extend(parsed)
@@ -483,11 +483,7 @@ def parse_tool_calls(
                 "tool call parsing interrupted, yield partial tool call as text"
             )
             response = response.model_copy(
-                update={
-                    "text": "".join(tool_call_text_parts),
-                    "token": 0,
-                    "finish_reason": "error",
-                }
+                update={"text": "".join(tool_call_text_parts), "token": 0}
             )
             yield response
 
