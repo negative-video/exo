@@ -30,6 +30,9 @@ class TypedTopic[T: FrozenModel]:
         T
     ]  # This can be worked around with evil type hacking, see https://stackoverflow.com/a/71720366 - I don't think it's necessary here.
 
+    # Send ahead of normal traffic, e.g. so election messages don't queue behind events
+    high_priority: bool = False
+
     @staticmethod
     def serialize(t: T) -> bytes:
         return t.model_dump_json().encode("utf-8")
@@ -43,7 +46,7 @@ LOCAL_EVENTS = TypedTopic("local_events", PublishPolicy.Always, LocalForwarderEv
 STATE_SNAPSHOTS = TypedTopic("state_snapshots", PublishPolicy.Always, StateSnapshot)
 COMMANDS = TypedTopic("commands", PublishPolicy.Always, ForwarderCommand)
 ELECTION_MESSAGES = TypedTopic(
-    "election_messages", PublishPolicy.Always, ElectionMessage
+    "election_messages", PublishPolicy.Always, ElectionMessage, high_priority=True
 )
 CONNECTION_MESSAGES = TypedTopic(
     "connection_messages", PublishPolicy.Never, ConnectionMessage
