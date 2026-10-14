@@ -54,6 +54,32 @@ def resolve_reasoning_params(
     return resolved_effort, resolved_thinking
 
 
+# Thinking tokens per request for each reasoning_effort. All stay well under
+# the 32168-token default output cap, so the answer still fits after thinking
+# is closed for the model.
+THINKING_BUDGET_BY_EFFORT: dict[ReasoningEffort, int] = {
+    "minimal": 2048,
+    "low": 4096,
+    "medium": 12288,
+    "high": 20480,
+    "xhigh": 24576,
+}
+
+
+def requested_thinking_budget(
+    thinking_budget: int | None,
+    reasoning_effort: ReasoningEffort | None,
+) -> int | None:
+    """The budget a request asked for: an explicit thinking_budget (0 means no
+    limit), else the level of an explicit reasoning_effort. None when it asked
+    for neither, so the node default applies."""
+    if thinking_budget is not None:
+        return thinking_budget
+    if reasoning_effort is None or reasoning_effort == "none":
+        return None
+    return THINKING_BUDGET_BY_EFFORT[reasoning_effort]
+
+
 class InputMessageContent(TruncatingString):
     truncate_length = 100
 
@@ -122,6 +148,9 @@ class TextGenerationTaskParams(BaseModel, frozen=True):
     chat_template_messages: list[dict[str, ChatTemplateValue]] | None = None
     reasoning_effort: ReasoningEffort | None = None
     enable_thinking: bool | None = None
+    # Most tokens the model may think before its thinking is closed for it.
+    # 0 means no limit. None until the API applies the node default.
+    thinking_budget: int | None = None
     logprobs: bool = False
     top_logprobs: int | None = None
     min_p: float | None = None

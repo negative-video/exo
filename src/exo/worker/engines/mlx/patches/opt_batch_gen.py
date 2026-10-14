@@ -67,12 +67,21 @@ def _patched_step(self: GenerationBatch) -> tuple[list[int], list[mx.array]]:
     logits = self.model(inputs[:, None], cache=self.prompt_cache)
     logits = logits[:, -1, :]
 
+    token_context: list[mx.array] = []
     if self.logits_processors is not None and any(self.logits_processors):
+        # As upstream: processors see the tokens in the cache plus the token
+        # fed in this step. self.tokens only gains that token at the end.
+        token_context = [
+            buffer.update_and_fetch(inputs[e : e + 1])
+            for e, buffer in enumerate(self._token_context)
+        ]
         processed_logits: list[mx.array] = []
         for e in range(len(self.uids)):
             sample_logits = logits[e : e + 1]
-            for processor in self.logits_processors[e]:
-                sample_logits = processor(mx.array(self.tokens[e]), sample_logits)
+            # mlx-lm stores None for a sequence without processors when it
+            # shares a prompt batch with one that has them.
+            for processor in self.logits_processors[e] or ():
+                sample_logits = processor(token_context[e], sample_logits)
             processed_logits.append(sample_logits)
         logits = mx.concatenate(processed_logits, axis=0)
 
@@ -111,9 +120,10 @@ def _patched_step(self: GenerationBatch) -> tuple[list[int], list[mx.array]]:
             pending_indices,
             pending_values,
             pending_selected,
+            *token_context,
         )
     else:
-        mx.async_eval(self._next_tokens, self._next_logprobs)
+        mx.async_eval(self._next_tokens, self._next_logprobs, *token_context)
 
     current_lp = self._current_logprobs
     if isinstance(current_lp, mx.array):

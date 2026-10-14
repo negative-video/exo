@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from collections import deque
 from typing import Any, Callable, Generator, List, Optional, Sequence, Tuple, Union
 from transformers import PreTrainedTokenizer
+from .models.cache import TokenBuffer
 from .tokenizer_utils import TokenizerWrapper
 
 DEFAULT_PROMPT = ...
@@ -386,7 +387,7 @@ class GenerationBatch:
     _current_logprobs: mx.array | List[mx.array]
     _next_tokens: Optional[mx.array]
     _next_logprobs: mx.array | List[mx.array]
-    _token_context: List[Any]
+    _token_context: List[TokenBuffer]
     _num_tokens: List[int]
     _matcher_states: List[Any]
 

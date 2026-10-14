@@ -235,8 +235,11 @@ async def claude_request_to_text_generation(
         ]
 
     enable_thinking: bool | None = None
+    thinking_budget: int | None = None
     if request.thinking is not None:
         enable_thinking = request.thinking.type in ("enabled", "adaptive")
+        if request.thinking.type == "enabled":
+            thinking_budget = request.thinking.budget_tokens
 
     return TextGenerationTaskParams(
         model=request.model,
@@ -252,6 +255,7 @@ async def claude_request_to_text_generation(
         stream=request.stream,
         tools=tools,
         enable_thinking=enable_thinking,
+        thinking_budget=thinking_budget,
         chat_template_messages=chat_template_messages
         if chat_template_messages
         else None,

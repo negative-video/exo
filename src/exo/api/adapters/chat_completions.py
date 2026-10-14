@@ -35,6 +35,7 @@ from exo.shared.types.text_generation import (
     InputMessage,
     InputMessageContent,
     TextGenerationTaskParams,
+    requested_thinking_budget,
     resolve_reasoning_params,
 )
 
@@ -164,6 +165,9 @@ async def chat_request_to_text_generation(
         tools=request.tools,
         reasoning_effort=resolved_effort,
         enable_thinking=resolved_thinking,
+        thinking_budget=requested_thinking_budget(
+            request.thinking_budget, request.reasoning_effort
+        ),
         chat_template_messages=chat_template_messages
         if chat_template_messages
         else None,

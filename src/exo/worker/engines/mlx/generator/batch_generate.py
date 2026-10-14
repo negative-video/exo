@@ -23,6 +23,7 @@ from exo.api.types import (
     TopLogprobItem,
     Usage,
 )
+from exo.shared.types.common import CommandId
 from exo.shared.types.memory import Memory
 from exo.shared.types.text_generation import TextGenerationTaskParams
 from exo.shared.types.worker.runner_response import GenerationResponse
@@ -39,6 +40,7 @@ from exo.worker.engines.mlx.generator.generate import (
     extract_top_logprobs,
     patch_embed_tokens,
     prefill,
+    thinking_budget_processor,
 )
 from exo.worker.engines.mlx.generator.remote_prefill import remote_prefill
 from exo.worker.engines.mlx.patches.opt_batch_gen import (
@@ -125,6 +127,7 @@ class ExoBatchGenerator:
         on_prefill_progress: Callable[[int, int], None] | None = None,
         distributed_prompt_progress_callback: Callable[[], None] | None = None,
         on_generation_token: Callable[[], None] | None = None,
+        request_id: CommandId | None = None,
     ) -> int:
         all_prompt_tokens = encode_prompt(self.tokenizer, prompt)
         all_prompt_tokens = fix_unmatched_think_end_tokens(
@@ -295,6 +298,11 @@ class ExoBatchGenerator:
             # Only sample length eos tokens
             eos_ids = eos_ids_from_tokenizer(self.tokenizer)
             logits_processors = [ban_token_ids(eos_ids)] + logits_processors
+        budget_processor = thinking_budget_processor(
+            self.tokenizer, task_params, prompt, request_id
+        )
+        if budget_processor is not None:
+            logits_processors.append(budget_processor)
 
         max_tokens = task_params.max_output_tokens or MAX_TOKENS
 

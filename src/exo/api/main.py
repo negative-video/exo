@@ -133,6 +133,7 @@ from exo.shared.constants import (
     EXO_EVENT_LOG_DIR,
     EXO_IMAGE_CACHE_DIR,
     EXO_MAX_CHUNK_SIZE,
+    EXO_THINKING_BUDGET,
     EXO_TRACING_CACHE_DIR,
 )
 from exo.shared.election import ElectionMessage
@@ -868,6 +869,12 @@ class API:
         self, task_params: TextGenerationTaskParams
     ) -> TextGeneration:
         task_params = task_params.with_card_sampling_defaults()
+        # Resolved here so every runner rank gets the same budget. The node
+        # default applies when the request set no budget and no reasoning_effort.
+        if task_params.thinking_budget is None:
+            task_params = task_params.model_copy(
+                update={"thinking_budget": EXO_THINKING_BUDGET}
+            )
         images = task_params.images
         if not images:
             command = TextGeneration(task_params=task_params)

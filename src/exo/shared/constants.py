@@ -105,4 +105,8 @@ ENABLE_DISAGGREGATION = os.getenv("ENABLE_DISAGGREGATION", "false").lower() == "
 
 EXO_MAX_CONCURRENT_REQUESTS = int(os.getenv("EXO_MAX_CONCURRENT_REQUESTS", "8"))
 
+# Thinking budget for requests that set neither a budget nor reasoning_effort.
+# 0 means no limit.
+EXO_THINKING_BUDGET = int(os.getenv("EXO_THINKING_BUDGET", "12288"))
+
 EXO_MAX_INSTANCE_RETRIES = 5

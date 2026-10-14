@@ -241,6 +241,9 @@ class ChatCompletionRequest(BaseModel):
     tools: list[dict[str, Any]] | None = None
     reasoning_effort: ReasoningEffort | None = None
     enable_thinking: bool | None = None
+    # Not part of the OpenAI API. Overrides the level reasoning_effort sets and
+    # the EXO_THINKING_BUDGET default; 0 means no limit.
+    thinking_budget: int | None = Field(default=None, ge=0)
     min_p: float | None = None
     repetition_penalty: float | None = None
     repetition_context_size: int | None = None

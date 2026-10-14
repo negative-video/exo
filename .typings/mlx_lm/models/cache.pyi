@@ -350,3 +350,10 @@ class BatchRotatingKVCache(_BaseCache):
         """
         In-place extend this cache with the other cache.
         """
+
+class TokenBuffer:
+    step: int
+    def __init__(self, tokens: List[int] = ...) -> None: ...
+    def update_and_fetch(self, tokens: mx.array) -> mx.array: ...
+    @property
+    def state(self) -> mx.array: ...

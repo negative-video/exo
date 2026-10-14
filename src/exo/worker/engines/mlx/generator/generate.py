@@ -21,7 +21,7 @@ from exo.api.types import (
     TopLogprobItem,
     Usage,
 )
-from exo.shared.types.common import ModelId
+from exo.shared.types.common import CommandId, ModelId
 from exo.shared.types.memory import Memory
 from exo.shared.types.text_generation import (
     InputMessage,
@@ -56,9 +56,15 @@ from exo.worker.engines.mlx.constants import (
     MAX_TOKENS,
 )
 from exo.worker.engines.mlx.generator.remote_prefill import remote_prefill
+from exo.worker.engines.mlx.generator.thinking_budget import (
+    THINKING_BUDGET_NOTE,
+    ThinkingBudget,
+    budget_within_output_cap,
+)
 from exo.worker.engines.mlx.types import KVCacheType, Model
 from exo.worker.engines.mlx.utils_mlx import (
     apply_chat_template,
+    detect_thinking_prompt_suffix,
     fix_unmatched_think_end_tokens,
     mx_barrier,
     system_prompt_token_count,
@@ -473,6 +479,65 @@ def ban_token_ids(token_ids: list[int]) -> Callable[[mx.array, mx.array], mx.arr
     return proc
 
 
+def thinking_budget_processor(
+    tokenizer: TokenizerWrapper,
+    task: TextGenerationTaskParams,
+    prompt: str,
+    request_id: CommandId | None,
+) -> Callable[[mx.array, mx.array], mx.array] | None:
+    """Close thinking once a request has thought for `task.thinking_budget`
+    tokens: force a short note, then the think-end tokens, then let generation
+    continue. None when there is no budget to enforce.
+
+    The processor needs the history to include the token fed in this step,
+    which both generators provide.
+    """
+    if (
+        not task.thinking_budget
+        or task.enable_thinking is False
+        or tokenizer.think_start_tokens is None
+        or tokenizer.think_end_tokens is None
+    ):
+        return None
+    budget = ThinkingBudget(
+        budget=budget_within_output_cap(
+            task.thinking_budget, task.max_output_tokens or MAX_TOKENS
+        ),
+        think_start_tokens=tokenizer.think_start_tokens,
+        think_end_tokens=tokenizer.think_end_tokens,
+        note_tokens=tokenizer.encode(THINKING_BUDGET_NOTE, add_special_tokens=False),
+        starts_in_thinking=detect_thinking_prompt_suffix(prompt, tokenizer),
+    )
+    observed_length: int | None = None
+    logged = False
+
+    def proc(history: mx.array, logits: mx.array) -> mx.array:
+        nonlocal observed_length, logged
+        if budget.phase == "finished":
+            return logits
+        if observed_length is None:
+            # The first call only sees the end of the prompt.
+            observed_length = history.size
+        else:
+            for token in cast(list[int], history[observed_length:].tolist()):
+                budget.observe(token)
+            observed_length = history.size
+        forced = budget.forced_token()
+        if forced is None:
+            return logits
+        if not logged:
+            logged = True
+            logger.info(
+                f"Thinking budget reached for request {request_id}: closing "
+                f"thinking at {budget.thinking_tokens} tokens"
+            )
+        forced_logits = mx.full(logits.shape, -1e9, dtype=logits.dtype)
+        forced_logits[..., forced] = 0.0
+        return forced_logits
+
+    return proc
+
+
 def eos_ids_from_tokenizer(tokenizer: TokenizerWrapper) -> list[int]:
     eos: list[int] | None = getattr(tokenizer, "eos_token_ids", None)
     if eos is None:
@@ -540,6 +605,7 @@ def mlx_generate(
     distributed_prompt_progress_callback: Callable[[], None] | None = None,
     on_generation_token: Callable[[], None] | None = None,
     vision_processor: VisionProcessor | None = None,
+    request_id: CommandId | None = None,
 ) -> Generator[GenerationResponse]:
     # Ensure that generation stats only contains peak memory for this generation
     mx.reset_peak_memory()
@@ -610,6 +676,9 @@ def mlx_generate(
         # Only sample length eos tokens
         eos_ids = eos_ids_from_tokenizer(tokenizer)
         logits_processors = [ban_token_ids(eos_ids)] + logits_processors
+    budget_processor = thinking_budget_processor(tokenizer, task, prompt, request_id)
+    if budget_processor is not None:
+        logits_processors.append(budget_processor)
 
     sampler = make_sampler(
         temp=task.temperature if task.temperature is not None else 0.7,

@@ -80,6 +80,7 @@ from exo.shared.types.text_generation import (
     InputMessage,
     InputMessageContent,
     TextGenerationTaskParams,
+    requested_thinking_budget,
     resolve_reasoning_params,
 )
 
@@ -390,6 +391,7 @@ async def responses_request_to_text_generation(
         chat_template_messages=built_chat_template or request.chat_template_messages,
         reasoning_effort=resolved_effort,
         enable_thinking=resolved_thinking,
+        thinking_budget=requested_thinking_budget(None, effort_from_reasoning),
         images=images,
     )
 

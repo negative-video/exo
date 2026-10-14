@@ -295,6 +295,7 @@ class SequentialGenerator(Engine):
             on_generation_token=on_generation_token,
             group=self.group,
             vision_processor=self.vision_processor,
+            request_id=task.command_id,
         )
 
     def close(self) -> None:
@@ -549,6 +550,7 @@ class BatchGenerator(Engine):
             on_prefill_progress=on_prefill_progress,
             distributed_prompt_progress_callback=distributed_prompt_progress_callback,
             on_generation_token=on_generation_token,
+            request_id=task.command_id,
         )
 
     def close(self) -> None:
