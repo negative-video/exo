@@ -14,12 +14,15 @@ from typing import Literal, final
 ThinkingPhase = Literal["before_thinking", "thinking", "closing", "finished"]
 
 # Forced before the think-end tokens to steer the model toward acting on what
-# it has instead of re-checking it. Earlier thinking is not sent back on later
-# turns, so the note also asks for a one-line status in the visible reply.
+# it has instead of re-checking it. Answering comes first: text written after
+# the forced close is visible reply, which the budget does not cut. Earlier
+# thinking is not sent back on later turns, so otherwise the note asks for a
+# one-line status in the visible reply before the next tool call.
 THINKING_BUDGET_NOTE = (
-    "\n\n(Thinking budget reached. In your reply, first write one line: "
-    "'Established: ...; still open: ...'. Then run the pending calculation "
-    "in Python, or write the answer.)\n"
+    "\n\n(Thinking budget reached. If you were about to write the answer, "
+    "write it now in your reply, in full, and make no more tool calls. "
+    "Otherwise write one line, 'Established: ...; still open: ...', then run "
+    "the pending calculation in Python.)\n"
 )
 
 # Output tokens a forced close leaves free for the note, the answer or a tool
