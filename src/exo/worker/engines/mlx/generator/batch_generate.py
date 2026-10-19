@@ -374,7 +374,7 @@ class ExoBatchGenerator:
             if state.task_params.bench:
                 delta = now - state.first_gen_token_time
                 logger.debug(
-                    f"[bench] uid={response.uid} tok#{state.completion_tokens} {text!r} t={delta:.4f}s"
+                    f"[bench] uid={response.uid} tok#{state.completion_tokens} t={delta:.4f}s"
                 )
             state.generated_text_parts.append(text)
             state.potential_stop_sequence_text += text

@@ -98,9 +98,7 @@ async def handle_image_block(block: ClaudeImageBlock) -> Base64Image | None:
         try:
             return await fetch_image_url(block.source.url)
         except Exception:
-            logger.opt(exception=True).warning(
-                f"Failed to fetch image at {block.source.url}"
-            )
+            logger.opt(exception=True).warning("Failed to fetch an image by URL")
 
     return None
 

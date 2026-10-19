@@ -676,7 +676,7 @@ def apply_chat_template(
             messages.append({"role": msg.role, "content": msg.content})
 
     prompt = render_chat_template(tokenizer, messages, task_params)
-    logger.debug(prompt)
+    logger.debug(f"prompt is {len(prompt)} characters")
 
     return prompt
 

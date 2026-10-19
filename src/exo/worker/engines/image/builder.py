@@ -188,7 +188,7 @@ class ImageEngine(Engine):
         task_params: ImageGenerationTaskParams | ImageEditsTaskParams,
     ) -> Generator[tuple[TaskId, Chunk | FinishedResponse | CancelledResponse]]:
         assert self.image_model
-        logger.info(f"received image task: {str(task_params)[:500]}")
+        logger.info(f"received image task: task {task_id}, model {task_params.model}")
 
         def cancel_checker() -> bool:
             for cancel_id in self.cancel_receiver.collect():

@@ -176,8 +176,7 @@ def parse_gpt_oss(
 
         # Debug: log every token with state
         logger.debug(
-            f"parse_gpt_oss token={response.token} text={response.text!r} "
-            f"recipient={recipient!r} ch={ch!r} delta={delta!r} "
+            f"parse_gpt_oss recipient={recipient!r} ch={ch!r} "
             f"state={stream.state} current_tool={current_tool_name!r}"
         )
 
@@ -270,7 +269,9 @@ def _parse_dsml_stream(
             return ToolCallResponse(
                 tool_calls=parsed, usage=response.usage, stats=response.stats
             )
-        logger.warning(f"DSML tool call parsing failed for: {text}")
+        logger.warning(
+            f"DSML tool call parsing failed for {len(text)} characters of output"
+        )
         return response.model_copy(update={"text": text})
 
     for response in responses:
@@ -452,17 +453,19 @@ def parse_tool_calls(
             # parse the actual tool calls from the tool call text
             combined = "".join(tool_call_text_parts)
             parsed = tool_parser.parse(combined.strip(), tools=tools)
-            logger.info(f"parsed {tool_call_text_parts=} into {parsed=}")
             in_tool_call = False
             tool_call_text_parts = []
 
             if parsed is None:
-                logger.warning(f"tool call parsing failed for text {combined}")
+                logger.warning(
+                    f"tool call parsing failed for {len(combined)} characters of output"
+                )
                 yield response.model_copy(
                     update={"text": combined, "token": 0, "finish_reason": "error"}
                 )
                 break
 
+            logger.info(f"parsed {len(parsed)} tool call(s)")
             accumulated_tool_calls.extend(parsed)
             if accumulated_tool_calls and (
                 response.finish_reason is not None or response.stats is not None

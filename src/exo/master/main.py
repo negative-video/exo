@@ -202,7 +202,10 @@ class Master:
         with self.command_receiver as commands:
             async for forwarder_command in commands:
                 try:
-                    logger.info(f"Executing command: {forwarder_command.command}")
+                    logger.info(
+                        f"Executing command: {forwarder_command.command.__class__.__name__}"
+                        f" {forwarder_command.command.command_id}"
+                    )
 
                     generated_events: list[Event] = []
                     command = forwarder_command.command
