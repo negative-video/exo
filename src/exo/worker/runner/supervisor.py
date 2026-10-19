@@ -304,6 +304,10 @@ class RunnerSupervisor:
             self.cancelled.add(task_id)
             return
         self.cancelled.add(task_id)
+        # A cancelled request never reports Complete. Mark it done now so its
+        # messages and tools aren't kept until the runner shuts down.
+        if self.in_progress.pop(task_id, None) is not None:
+            self.completed.add(task_id)
         with anyio.move_on_after(0.5) as scope:
             try:
                 await self._cancel_sender.send_async(task_id)

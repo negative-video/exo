@@ -158,7 +158,10 @@ class SequentialGenerator(Engine):
 
         agreed, different = mx_all_gather_tasks(self._maybe_cancel, self.group)
         self._cancelled_tasks.update(task.task_id for task in agreed)
-        self._maybe_cancel = list(different)
+        # A task that finished meanwhile has nothing left to cancel
+        self._maybe_cancel = [
+            task for task in different if task.task_id in self._all_tasks
+        ]
 
     def step(
         self,
@@ -190,6 +193,8 @@ class SequentialGenerator(Engine):
 
         except (StopIteration, PrefillCancelled):
             output.append((task.task_id, FinishedResponse()))
+            # Forget the request (its messages and tools) once it is done
+            self._all_tasks.pop(task.task_id, None)
             self._active = None
             if self._queue:
                 self._start_next()
@@ -396,7 +401,10 @@ class BatchGenerator(Engine):
 
         agreed, different = mx_all_gather_tasks(self._maybe_cancel, self.group)
         self._cancelled_tasks.update(task.task_id for task in agreed)
-        self._maybe_cancel = list(different)
+        # A task that finished meanwhile has nothing left to cancel
+        self._maybe_cancel = [
+            task for task in different if task.task_id in self._all_tasks
+        ]
 
     def step(
         self,
@@ -412,6 +420,7 @@ class BatchGenerator(Engine):
             try:
                 uid = self._start_task(task)
             except PrefillCancelled:
+                self._all_tasks.pop(task.task_id, None)
                 continue
             except Exception as e:
                 self._send_error(task, e)
@@ -458,6 +467,8 @@ class BatchGenerator(Engine):
             if response.finish_reason is not None:
                 output.append((task.task_id, FinishedResponse()))
                 del self._active_tasks[uid]
+                # Forget the request (its messages and tools) once it is done
+                self._all_tasks.pop(task.task_id, None)
 
         return filter(
             lambda chunk: (
@@ -482,6 +493,7 @@ class BatchGenerator(Engine):
                 uids_to_cancel.append(uid)
                 results.append((task.task_id, CancelledResponse()))
                 del self._active_tasks[uid]
+                self._all_tasks.pop(task.task_id, None)
 
         if uids_to_cancel:
             self._gen.cancel(uids_to_cancel)
