@@ -56,6 +56,9 @@ def logger_setup(log_file: Path | None, verbosity: int = 0):
     # replace all stdlib loggers with _InterceptHandlers that log to loguru
     logging.basicConfig(handlers=[_InterceptHandler()], level=0)
 
+    # Every sink sets backtrace and diagnose off: loguru's defaults print the value of
+    # every variable in each traceback frame, which includes request content (prompts,
+    # task parameters, request bodies).
     if verbosity == 0:
         logger.add(
             sys.__stderr__,  # type: ignore
@@ -63,6 +66,8 @@ def logger_setup(log_file: Path | None, verbosity: int = 0):
             level="INFO",
             colorize=True,
             enqueue=True,
+            backtrace=False,
+            diagnose=False,
         )
     else:
         logger.add(
@@ -71,6 +76,8 @@ def logger_setup(log_file: Path | None, verbosity: int = 0):
             level="DEBUG",
             colorize=True,
             enqueue=True,
+            backtrace=False,
+            diagnose=False,
         )
     if log_file:
         rotate_once = _once_then_never()
@@ -83,6 +90,8 @@ def logger_setup(log_file: Path | None, verbosity: int = 0):
             rotation=lambda _, __: next(rotate_once),
             retention=_MAX_LOG_ARCHIVES,
             compression=_zstd_compress,
+            backtrace=False,
+            diagnose=False,
         )
 
 
