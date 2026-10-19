@@ -83,8 +83,10 @@ from exo.utils.event_buffer import MultiSourceBuffer
 from exo.utils.task_group import TaskGroup
 
 # Recent events kept for nodes that missed a few. A node further behind than this
-# is sent a snapshot of the current state instead of the whole history.
-REPLAYABLE_EVENTS = 10_000
+# is sent a snapshot of the current state instead of the whole history. Kept small
+# because these events carry request content (prompts, generated tokens): at the
+# cluster's ~11 events/s, 1,000 events are about a minute and a half.
+REPLAYABLE_EVENTS = 1_000
 # ...holding at most this much image data. Image chunks are the only large events, and a
 # few requests with large images would otherwise make the window hold gigabytes.
 REPLAYABLE_IMAGE_BYTES = 256 * 1024 * 1024
