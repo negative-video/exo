@@ -131,7 +131,6 @@ from exo.shared.constants import (
     DASHBOARD_DIR,
     ENABLE_DISAGGREGATION,
     EXO_CACHE_HOME,
-    EXO_EVENT_LOG_DIR,
     EXO_IMAGE_CACHE_DIR,
     EXO_MAX_CHUNK_SIZE,
     EXO_THINKING_BUDGET,
@@ -179,7 +178,6 @@ from exo.shared.types.commands import (
 from exo.shared.types.common import CommandId, Id, NodeId, SystemId
 from exo.shared.types.events import (
     ChunkGenerated,
-    Event,
     InstanceDeleted,
     StateSnapshot,
     TracesMerged,
@@ -205,11 +203,9 @@ from exo.shared.types.worker.instances import Instance, InstanceId, InstanceMeta
 from exo.shared.types.worker.shards import Sharding
 from exo.utils.banner import print_startup_banner
 from exo.utils.channels import Receiver, Sender, channel
-from exo.utils.disk_event_log import DiskEventLog
 from exo.utils.power_sampler import PowerSampler
 from exo.utils.task_group import TaskGroup
 
-_API_EVENT_LOG_DIR = EXO_EVENT_LOG_DIR / "api"
 ONBOARDING_COMPLETE_FILE = EXO_CACHE_HOME / "onboarding_complete"
 
 
@@ -250,7 +246,6 @@ class API:
         election_receiver: Receiver[ElectionMessage],
     ) -> None:
         self.state = State()
-        self._event_log = DiskEventLog(_API_EVENT_LOG_DIR)
         self._system_id = SystemId()
         self.command_sender = command_sender
         self.download_command_sender = download_command_sender
@@ -299,8 +294,6 @@ class API:
 
     def reset(self, result_clock: int, event_receiver: NodeEventReceiver):
         logger.info("Resetting API State")
-        self._event_log.close()
-        self._event_log = DiskEventLog(_API_EVENT_LOG_DIR)
         self.state = State()
         self._system_id = SystemId()
         self._text_generation_queues = {}
@@ -398,7 +391,6 @@ class API:
 
         self.app.get("/state")(self.get_state)
         self.app.get("/state/{path:path}")(self.get_state)
-        self.app.get("/events")(self.stream_events)
         self.app.post("/download/start")(self.start_download)
         self.app.delete("/download/{node_id}/{model_id:path}")(self.delete_download)
         self.app.post("/download/cancel")(self.cancel_download)
@@ -1017,22 +1009,6 @@ class API:
                 status_code=404, detail=f"No instance found for model {model_id}"
             )
         return model_id
-
-    def stream_events(self) -> StreamingResponse:
-        def _generate_json_array(events: Iterable[Event]) -> Iterable[str]:
-            yield "["
-            first = True
-            for event in events:
-                if not first:
-                    yield ","
-                first = False
-                yield event.model_dump_json()
-            yield "]"
-
-        return StreamingResponse(
-            _generate_json_array(self._event_log.read_all()),
-            media_type="application/json",
-        )
 
     async def get_image(self, image_id: str) -> FileResponse:
         stored = self._image_store.get(Id(image_id))
@@ -1951,7 +1927,6 @@ class API:
 
                         shutdown_ev.set()
         finally:
-            self._event_log.close()
             self.command_sender.close()
             self.event_receiver.close()
 
@@ -1995,7 +1970,6 @@ class API:
                 if isinstance(i_event, StateSnapshot):
                     self._apply_snapshot(i_event)
                     continue
-                self._event_log.append(i_event.event)
                 self.state = apply(self.state, i_event)
                 event = i_event.event
 

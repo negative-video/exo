@@ -37,15 +37,6 @@ Returns the current state of the cluster, including nodes and active instances.
 **Response:**
 JSON object describing topology, nodes, and instances.
 
-### Get Events
-
-**GET** `/events`
-
-Returns the internal events this node has applied in the current session (mainly for debugging and observability). A node that joined late, or fell far behind, catches up from a state snapshot, so it only has the events after that point.
-
-**Response:**
-Array of event objects.
-
 ## 2. Model Instance Management
 
 ### Create Instance
@@ -663,7 +654,6 @@ Image file with appropriate content type.
 # General
 GET     /node_id
 GET     /state
-GET     /events
 
 # Instance Management
 POST    /instance
@@ -759,4 +749,4 @@ The instance placement endpoints allow you to plan and preview cluster allocatio
 
 ### Observability
 
-The `/events` and `/state` endpoints are primarily intended for operational visibility and debugging.
+The `/state` endpoint is primarily intended for operational visibility and debugging.

@@ -40,9 +40,6 @@ from exo.utils.pydantic_ext import FrozenModel
 from exo.utils.task_group import TaskGroup
 from exo.worker.main import Worker
 
-# Where the master used to keep every event of a session; removed when a node starts
-_OLD_MASTER_EVENT_LOG_DIR = EXO_EVENT_LOG_DIR / "master"
-
 
 @dataclass
 class Node:
@@ -167,8 +164,10 @@ class Node:
         )
 
     async def run(self):
+        # Older versions kept every event, request content included, under
+        # EXO_EVENT_LOG_DIR. Nothing writes there now; remove what they left.
         await to_thread.run_sync(
-            partial(shutil.rmtree, _OLD_MASTER_EVENT_LOG_DIR, ignore_errors=True)
+            partial(shutil.rmtree, EXO_EVENT_LOG_DIR, ignore_errors=True)
         )
         async with self._tg as tg:
             signal.signal(signal.SIGINT, lambda _, __: self.shutdown())
