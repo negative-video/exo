@@ -403,10 +403,13 @@ class API:
         self.app.post("/onboarding")(self.complete_onboarding)
 
     def get_state(self, path: str = ""):
+        # Tasks carry request content (messages, tools) and nothing outside exo
+        # reads them, so /state leaves them out.
+        state = self.state.model_copy(update={"tasks": {}})
         if path == "":
-            return self.state
+            return state
         try:
-            x = self.state.model_dump(by_alias=True)
+            x = state.model_dump(by_alias=True)
             for attr in path.split("/"):
                 if attr != "":
                     if isinstance(x, dict):
