@@ -505,6 +505,11 @@ class BatchGenerator(Engine):
 
         # A cancelled task that hasn't started must never start: the runner has already
         # forgotten it. The cancellation is agreed, so every rank drops the same tasks.
+        dropped = [
+            task
+            for task in (*self._queue, *self._maybe_queue)
+            if cancel_all or task.task_id in self._cancelled_tasks
+        ]
         self._queue = deque(
             task
             for task in self._queue
@@ -515,6 +520,9 @@ class BatchGenerator(Engine):
             for task in self._maybe_queue
             if not cancel_all and task.task_id not in self._cancelled_tasks
         ]
+        # ...and is forgotten, messages and tools included
+        for task in dropped:
+            self._all_tasks.pop(task.task_id, None)
         self._cancelled_tasks.clear()
         return iter(results)
 
