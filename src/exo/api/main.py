@@ -24,6 +24,7 @@ from hypercorn.config import Config
 from hypercorn.typing import ASGIFramework
 from hypercorn.utils import LifespanTimeoutError, ShutdownError
 from loguru import logger
+from pydantic import BaseModel, ValidationError
 
 from exo.api.adapters.chat_completions import (
     chat_request_to_text_generation,
@@ -225,6 +226,19 @@ _GENERATION_INTERRUPTED_MESSAGE = (
 # with an error instead of waiting forever.
 REQUEST_RESEND_WAITS = (10.0, 15.0, 30.0)
 _NOT_ACCEPTED_MESSAGE = "The cluster didn't accept the request. Please check that the model is running and try again."
+
+
+def _parse_request_body[Model: BaseModel](model: type[Model], body: bytes) -> Model:
+    """Parses a body the route reads itself. A body that doesn't parse is answered with a 400
+    rather than raised, which logs the error: pydantic's message quotes the body, which is
+    request content."""
+    try:
+        return model.model_validate_json(body)
+    except ValidationError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid request body ({error.error_count()} errors)",
+        ) from None
 
 
 def _format_to_content_type(image_format: Literal["png", "jpeg", "webp"] | None) -> str:
@@ -1656,7 +1670,7 @@ class API:
     ) -> OllamaChatResponse | StreamingResponse:
         """Ollama Chat API — accepts JSON regardless of Content-Type."""
         body = await request.body()
-        payload = OllamaChatRequest.model_validate_json(body)
+        payload = _parse_request_body(OllamaChatRequest, body)
         task_params = ollama_request_to_text_generation(payload)
         validated_model = await self._validate_model_has_instance(
             ModelId(task_params.model)
@@ -1692,7 +1706,7 @@ class API:
     ) -> OllamaGenerateResponse | StreamingResponse:
         """Ollama Generate API — accepts JSON regardless of Content-Type."""
         body = await request.body()
-        payload = OllamaGenerateRequest.model_validate_json(body)
+        payload = _parse_request_body(OllamaGenerateRequest, body)
         task_params = ollama_generate_request_to_text_generation(payload)
         validated_model = await self._validate_model_has_instance(
             ModelId(task_params.model)
@@ -1759,7 +1773,7 @@ class API:
     async def ollama_show(self, request: Request) -> OllamaShowResponse:
         """Returns model information in Ollama show format."""
         body = await request.body()
-        payload = OllamaShowRequest.model_validate_json(body)
+        payload = _parse_request_body(OllamaShowRequest, body)
         model_name = payload.name or payload.model
         if not model_name:
             raise HTTPException(status_code=400, detail="name or model is required")
