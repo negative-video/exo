@@ -59,9 +59,11 @@ PREFILL_TIMEOUT_SECONDS = 60
 DECODE_TIMEOUT_SECONDS = 5
 # How often the supervisor checks that its runner is alive and can still reach the others
 RUNNER_WATCH_INTERVAL = 5.0
-# A generating runner reports a token every step and progress every prefill chunk, so this
-# long without a word means it is stuck (its instance's runners can wait on each other forever)
-RUNNER_STALL_TIMEOUT = 90.0
+# A generating runner reports progress every prefill chunk and a token every step, except
+# while it writes a tool call: those tokens are held back until the call is complete. At
+# ~13 tok/s a 90 s limit killed a runner writing a ~1,200-token script. A runner silent this
+# long is stuck (its instance's runners can wait on each other forever).
+RUNNER_STALL_TIMEOUT = 600.0
 
 
 @dataclass(eq=False)
@@ -468,6 +470,8 @@ class RunnerSupervisor:
             # Record how runner shut down, try exception, resort to RunnerTerminationError fallback
             if isinstance(e, Exception):
                 logger.opt(exception=e).error(f"Runner terminated with {cause}")
+                # Say why in the error the client gets, not only in the log
+                cause = f"{cause}: {e}"
             else:
                 cause = f"{cause}\nRunner error: {e}"
                 logger.error(f"Runner terminated with {cause}")
