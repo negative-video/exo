@@ -16,7 +16,6 @@ from anyio import BrokenResourceError, ClosedResourceError
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
 from hypercorn.asyncio import serve  # pyright: ignore[reportUnknownVariableType]
 from hypercorn.config import Config
 from hypercorn.typing import ASGIFramework
@@ -47,6 +46,7 @@ from exo.api.adapters.responses import (
     responses_request_to_text_generation,
 )
 from exo.api.collected_response import CollectedResponse
+from exo.api.dashboard_files import DashboardFiles
 from exo.api.keepalive import with_sse_keepalive
 from exo.api.request_logger import RequestLogger
 from exo.api.types import (
@@ -281,7 +281,7 @@ class API:
 
         self.app.mount(
             "/",
-            StaticFiles(
+            DashboardFiles(
                 directory=DASHBOARD_DIR,
                 html=True,
             ),
