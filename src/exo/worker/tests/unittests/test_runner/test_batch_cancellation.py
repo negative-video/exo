@@ -114,8 +114,11 @@ def test_a_cancelled_request_that_has_not_started_never_starts() -> None:
     runner_side._maybe_queue = []  # pyright: ignore[reportPrivateUsage]
     runner_side._active_tasks = {}  # pyright: ignore[reportPrivateUsage]
     runner_side._cancelled_tasks = {queued.task_id}  # pyright: ignore[reportPrivateUsage]
+    runner_side._all_tasks = {queued.task_id: queued, other.task_id: other}  # pyright: ignore[reportPrivateUsage]
 
     results = list(runner_side._apply_cancellations())  # pyright: ignore[reportPrivateUsage]
 
     assert results == [(queued.task_id, CancelledResponse())]
     assert list(runner_side._queue) == [other]  # pyright: ignore[reportPrivateUsage]
+    # Its messages and tools are forgotten too
+    assert runner_side._all_tasks == {other.task_id: other}  # pyright: ignore[reportPrivateUsage]
