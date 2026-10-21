@@ -106,9 +106,6 @@ class Worker:
         # When this worker last asked for an instance it gave up on to be deleted
         self._deletion_requested: dict[InstanceId, float] = {}
         self._stopped: anyio.Event = anyio.Event()
-        # Runners this worker has started, to tell them from runners this node had
-        # before it restarted
-        self._started_runners: set[RunnerId] = set()
 
     async def run(self):
         logger.info("Starting Worker")
@@ -255,30 +252,6 @@ class Worker:
                             )
                         )
                     continue
-                if (
-                    task.bound_instance.bound_runner_id in self.state.runners
-                    and task.bound_instance.bound_runner_id not in self._started_runners
-                ):
-                    # This node had a runner for the instance before it restarted. The
-                    # instance's other runners still wait on that one, which is gone, so
-                    # the instance can't run again: have the master delete it, as it does
-                    # for a node that drops out for longer.
-                    requested_at = self._deletion_requested.get(iid)
-                    if (
-                        requested_at is None
-                        or time.monotonic() - requested_at >= DELETION_REQUEST_RETRY
-                    ):
-                        logger.warning(
-                            f"Instance {iid} lost this node's runner when the node restarted, requesting deletion"
-                        )
-                        self._deletion_requested[iid] = time.monotonic()
-                        await self.command_sender.send(
-                            ForwarderCommand(
-                                origin=self._system_id,
-                                command=DeleteInstance(instance_id=iid),
-                            )
-                        )
-                    continue
 
             logger.info(f"Worker plan: {task.__class__.__name__}")
             assert task.task_status
@@ -293,7 +266,6 @@ class Worker:
             # lets not kill the worker if a runner is unresponsive
             match task:
                 case CreateRunner():
-                    self._started_runners.add(task.bound_instance.bound_runner_id)
                     await self._create_supervisor(task)
                     self._instance_backoff.record_attempt(task.instance_id)
                     await self.event_sender.send(
