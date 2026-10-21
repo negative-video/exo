@@ -249,13 +249,14 @@ impl Discovery {
 
         let addrs = self.ifaces.lock().clone();
         debug!("announcing Hello({nonce:?}) to {addrs:?}");
-        // A failed send is retried on the next tick. An interface is never dropped
-        // for failing: a Thunderbolt link that is still coming up (address not yet
-        // usable) reports HostUnreachable, and dropping it would silence discovery
-        // on that link for the life of the process.
-        for addr in addrs {
+        // rev so .remove() doesn't break things
+        for (i, addr) in addrs.into_iter().enumerate().rev() {
             match self.sock.send_to(&buf, addr).await {
                 Ok(bytes) => trace!("sent {bytes} to {addr}"),
+                Err(e) if e.kind() == io::ErrorKind::HostUnreachable => {
+                    debug!("disabling discovery address {addr}: {e}");
+                    _ = self.ifaces.lock().swap_remove(i);
+                }
                 Err(e) => debug!("failed to reach {addr}: {e}"),
             }
         }
