@@ -109,7 +109,6 @@ class Worker:
         # Runners this worker has started, to tell them from runners this node had
         # before it restarted
         self._started_runners: set[RunnerId] = set()
-        self._deletions_requested: set[InstanceId] = set()
 
     async def run(self):
         logger.info("Starting Worker")
@@ -264,11 +263,15 @@ class Worker:
                     # instance's other runners still wait on that one, which is gone, so
                     # the instance can't run again: have the master delete it, as it does
                     # for a node that drops out for longer.
-                    if iid not in self._deletions_requested:
-                        self._deletions_requested.add(iid)
+                    requested_at = self._deletion_requested.get(iid)
+                    if (
+                        requested_at is None
+                        or time.monotonic() - requested_at >= DELETION_REQUEST_RETRY
+                    ):
                         logger.warning(
                             f"Instance {iid} lost this node's runner when the node restarted, requesting deletion"
                         )
+                        self._deletion_requested[iid] = time.monotonic()
                         await self.command_sender.send(
                             ForwarderCommand(
                                 origin=self._system_id,
