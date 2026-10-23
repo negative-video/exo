@@ -21,7 +21,8 @@ CloseReason = Literal["budget", "answer_intent"]
 # one-line status in the visible reply before the next tool call.
 THINKING_BUDGET_NOTE = (
     "\n\n(Thinking budget reached. If you were about to write the answer, "
-    "write it now in your reply, in full, and make no more tool calls. "
+    "write it now in your reply, in full, starting with the answer itself, and "
+    "make no more tool calls. "
     "Otherwise write one line, 'Established: ...; still open: ...', then run "
     "the pending calculation in Python.)\n"
 )
@@ -31,13 +32,30 @@ THINKING_BUDGET_NOTE = (
 # instead of drafting it in thinking, where the budget cuts it and the note's
 # "otherwise" branch reopens the work. Only the first ANSWER_INTENT_WINDOW
 # thinking tokens count; the phrases are matched as token sequences.
-ANSWER_INTENT_PHRASES = (
-    " write the answer",
-    " write the final answer",
-    " assemble the answer",
-    "Write the answer",
-    " I have everything",
+_ANSWER_VERBS = ("write", "compile", "assemble", "compose", "draft")
+_ANSWER_OBJECTS = (
+    "the answer",
+    "the final answer",
+    "the findings",
+    "the report",
+    "the referee report",
+    "the response",
+)
+_ANSWER_CLAIMS = (
     "I have everything",
+    "I have the answer",
+    "Now the answer",
+    "Found everything",
+    "Found both",
+)
+# Each phrase mid-sentence (leading space) and at the start of a line.
+ANSWER_INTENT_PHRASES = tuple(
+    phrase
+    for text in (
+        *(f"{verb} {obj}" for verb in _ANSWER_VERBS for obj in _ANSWER_OBJECTS),
+        *_ANSWER_CLAIMS,
+    )
+    for phrase in (" " + text, text[0].upper() + text[1:])
 )
 ANSWER_INTENT_WINDOW = 256
 ANSWER_INTENT_NOTE = (
