@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from typing import Literal, final
 
 ThinkingPhase = Literal["before_thinking", "thinking", "closing", "finished"]
+CloseReason = Literal["budget", "answer_intent"]
 
 # Forced before the think-end tokens to steer the model toward acting on what
 # it has instead of re-checking it. Answering comes first: text written after
@@ -23,6 +24,25 @@ THINKING_BUDGET_NOTE = (
     "write it now in your reply, in full, and make no more tool calls. "
     "Otherwise write one line, 'Established: ...; still open: ...', then run "
     "the pending calculation in Python.)\n"
+)
+
+# A round whose thinking opens by announcing the answer ("Now let me write the
+# answer") is closed at once, so the model writes the answer as visible reply
+# instead of drafting it in thinking, where the budget cuts it and the note's
+# "otherwise" branch reopens the work. Only the first ANSWER_INTENT_WINDOW
+# thinking tokens count; the phrases are matched as token sequences.
+ANSWER_INTENT_PHRASES = (
+    " write the answer",
+    " write the final answer",
+    " assemble the answer",
+    "Write the answer",
+    " I have everything",
+    "I have everything",
+)
+ANSWER_INTENT_WINDOW = 256
+ANSWER_INTENT_NOTE = (
+    "\n\n(You have what you need. Write the answer now in your reply, in full, "
+    "and make no more tool calls.)\n"
 )
 
 # Output tokens a forced close leaves free for the note, the answer or a tool
@@ -46,6 +66,8 @@ class ThinkingBudget:
         think_end_tokens: Sequence[int],
         note_tokens: Sequence[int],
         starts_in_thinking: bool,
+        intent_sequences: Sequence[Sequence[int]] = (),
+        intent_note_tokens: Sequence[int] = (),
     ):
         assert budget > 0
         assert len(think_start_tokens) > 0
@@ -54,6 +76,9 @@ class ThinkingBudget:
         self._think_start_tokens = tuple(think_start_tokens)
         self._think_end_tokens = tuple(think_end_tokens)
         self._note_tokens = tuple(note_tokens)
+        self._intent_sequences = tuple(tuple(q) for q in intent_sequences if q)
+        self._intent_note_tokens = tuple(intent_note_tokens)
+        self.close_reason: CloseReason | None = None
         self.phase: ThinkingPhase = (
             "thinking" if starts_in_thinking else "before_thinking"
         )
@@ -62,7 +87,9 @@ class ThinkingBudget:
         self._closing_position = 0
         self._recent_tokens: list[int] = []
         self._recent_window = max(
-            len(self._think_start_tokens), len(self._think_end_tokens)
+            len(self._think_start_tokens),
+            len(self._think_end_tokens),
+            *(len(q) for q in self._intent_sequences),
         )
 
     def observe(self, token: int) -> None:
@@ -91,16 +118,24 @@ class ThinkingBudget:
             return
 
         self.thinking_tokens += 1
-        if self.thinking_tokens >= self.budget:
-            self.phase = "closing"
-            prefix_length = self._think_end_prefix_length()
-            # Finish a think-end sequence the model already started; otherwise
-            # write the note first.
-            self._closing_tokens = (
-                self._think_end_tokens[prefix_length:]
-                if prefix_length > 0
-                else self._note_tokens + self._think_end_tokens
-            )
+        if self.thinking_tokens <= ANSWER_INTENT_WINDOW and any(
+            self._recent_tokens_end_with(q) for q in self._intent_sequences
+        ):
+            self._close("answer_intent", self._intent_note_tokens)
+        elif self.thinking_tokens >= self.budget:
+            self._close("budget", self._note_tokens)
+
+    def _close(self, reason: CloseReason, note: tuple[int, ...]) -> None:
+        self.phase = "closing"
+        self.close_reason = reason
+        prefix_length = self._think_end_prefix_length()
+        # Finish a think-end sequence the model already started; otherwise
+        # write the note first.
+        self._closing_tokens = (
+            self._think_end_tokens[prefix_length:]
+            if prefix_length > 0
+            else note + self._think_end_tokens
+        )
 
     def forced_token(self) -> int | None:
         """The token the next step must produce, or None to sample freely."""

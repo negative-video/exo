@@ -109,4 +109,7 @@ EXO_MAX_CONCURRENT_REQUESTS = int(os.getenv("EXO_MAX_CONCURRENT_REQUESTS", "8"))
 # 0 means no limit.
 EXO_THINKING_BUDGET = int(os.getenv("EXO_THINKING_BUDGET", "12288"))
 
+# Close thinking as soon as a round opens by announcing the answer. 0 turns it off.
+EXO_ANSWER_INTENT_CLOSE = os.getenv("EXO_ANSWER_INTENT_CLOSE", "1") != "0"
+
 EXO_MAX_INSTANCE_RETRIES = 5

@@ -22,6 +22,7 @@ from exo.api.types import (
     TopLogprobItem,
     Usage,
 )
+from exo.shared.constants import EXO_ANSWER_INTENT_CLOSE
 from exo.shared.types.common import CommandId, ModelId
 from exo.shared.types.memory import Memory
 from exo.shared.types.text_generation import (
@@ -58,6 +59,8 @@ from exo.worker.engines.mlx.constants import (
 )
 from exo.worker.engines.mlx.generator.remote_prefill import remote_prefill
 from exo.worker.engines.mlx.generator.thinking_budget import (
+    ANSWER_INTENT_NOTE,
+    ANSWER_INTENT_PHRASES,
     THINKING_BUDGET_NOTE,
     ThinkingBudget,
     budget_within_output_cap,
@@ -509,6 +512,15 @@ def thinking_budget_processor(
         think_end_tokens=tokenizer.think_end_tokens,
         note_tokens=tokenizer.encode(THINKING_BUDGET_NOTE, add_special_tokens=False),
         starts_in_thinking=detect_thinking_prompt_suffix(prompt, tokenizer),
+        intent_sequences=[
+            tokenizer.encode(phrase, add_special_tokens=False)
+            for phrase in ANSWER_INTENT_PHRASES
+        ]
+        if EXO_ANSWER_INTENT_CLOSE
+        else [],
+        intent_note_tokens=tokenizer.encode(
+            ANSWER_INTENT_NOTE, add_special_tokens=False
+        ),
     )
     observed_length: int | None = None
     logged = False
@@ -529,8 +541,13 @@ def thinking_budget_processor(
             return logits
         if not logged:
             logged = True
+            why = (
+                "Answer announced"
+                if budget.close_reason == "answer_intent"
+                else "Thinking budget reached"
+            )
             logger.info(
-                f"Thinking budget reached for request {request_id}: closing "
+                f"{why} for request {request_id}: closing "
                 f"thinking at {budget.thinking_tokens} tokens"
             )
         forced_logits = mx.full(logits.shape, -1e9, dtype=logits.dtype)

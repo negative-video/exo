@@ -72,9 +72,10 @@ class _FakeTokenizer:
         self.think_end_tokens = [THINK_END] if has_thinking else None
 
     def encode(self, text: str, add_special_tokens: bool = True) -> list[int]:
-        assert text == THINKING_BUDGET_NOTE
         assert not add_special_tokens
-        return NOTE
+        # The budget note is the one these tests force; answer-intent phrases
+        # never occur in their token streams.
+        return NOTE if text == THINKING_BUDGET_NOTE else []
 
 
 def _tokenizer(has_thinking: bool = True) -> TokenizerWrapper:

@@ -149,3 +149,59 @@ def test_budget_leaves_room_for_the_answer_under_the_output_cap():
     # A small cap keeps half for the answer.
     assert budget_within_output_cap(12288, 6000) == 3000
     assert budget_within_output_cap(12288, 1) == 1
+
+
+INTENT = [10, 11]
+INTENT_NOTE = [12, 13]
+
+
+def _intent_budget(budget: int) -> ThinkingBudget:
+    return ThinkingBudget(
+        budget=budget,
+        think_start_tokens=[THINK_START],
+        think_end_tokens=[THINK_END],
+        note_tokens=NOTE,
+        starts_in_thinking=True,
+        intent_sequences=[INTENT, []],
+        intent_note_tokens=INTENT_NOTE,
+    )
+
+
+def _announces_then_thinks(at: int) -> Callable[[list[int]], int]:
+    """Thinks, announces the answer after `at` words, thinks on until closed."""
+
+    def model(generated: list[int]) -> int:
+        if THINK_END in generated:
+            return ANSWER
+        if len(generated) == at:
+            return INTENT[0]
+        if len(generated) == at + 1:
+            return INTENT[1]
+        return WORD
+
+    return model
+
+
+def test_announcing_the_answer_closes_thinking_with_the_intent_note():
+    budget = _intent_budget(100)
+    out = _generate(budget, _announces_then_thinks(at=3), steps=12)
+    assert out[:5] == [WORD, WORD, WORD, *INTENT]
+    assert out[5:10] == [*INTENT_NOTE, THINK_END, ANSWER, ANSWER]
+    assert budget.close_reason == "answer_intent"
+    assert budget.phase == "finished"
+
+
+def test_announcement_after_the_window_does_not_close():
+    from exo.worker.engines.mlx.generator.thinking_budget import ANSWER_INTENT_WINDOW
+
+    budget = _intent_budget(ANSWER_INTENT_WINDOW + 50)
+    out = _generate(budget, _announces_then_thinks(at=ANSWER_INTENT_WINDOW + 5), steps=ANSWER_INTENT_WINDOW + 20)
+    assert THINK_END not in out
+    assert budget.phase == "thinking"
+
+
+def test_budget_close_still_uses_the_budget_note():
+    budget = _intent_budget(4)
+    out = _generate(budget, _thinks_until_closed([THINK_END], opens_thinking=False), steps=10)
+    assert out[4 : 4 + len(NOTE) + 1] == [*NOTE, THINK_END]
+    assert budget.close_reason == "budget"
