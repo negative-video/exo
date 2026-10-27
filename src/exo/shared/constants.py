@@ -99,6 +99,9 @@ EXO_ENABLE_IMAGE_MODELS = (
 
 EXO_OFFLINE = os.getenv("EXO_OFFLINE", "false").lower() == "true"
 
+# The key other machines must send to list models and chat (see api/access_gate.py)
+EXO_API_KEY = os.getenv("EXO_API_KEY", "").strip() or None
+
 EXO_TRACING_ENABLED = os.getenv("EXO_TRACING_ENABLED", "false").lower() == "true"
 
 ENABLE_DISAGGREGATION = os.getenv("ENABLE_DISAGGREGATION", "false").lower() == "true"

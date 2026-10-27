@@ -17,7 +17,6 @@ import anyio
 import httpx
 from anyio import BrokenResourceError, ClosedResourceError
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from hypercorn.asyncio import serve  # pyright: ignore[reportUnknownVariableType]
 from hypercorn.config import Config
@@ -26,6 +25,7 @@ from hypercorn.utils import LifespanTimeoutError, ShutdownError
 from loguru import logger
 from pydantic import BaseModel, ValidationError
 
+from exo.api.access_gate import AccessGate
 from exo.api.adapters.chat_completions import (
     chat_request_to_text_generation,
     collect_chat_response,
@@ -137,6 +137,7 @@ from exo.shared.apply import apply
 from exo.shared.constants import (
     DASHBOARD_DIR,
     ENABLE_DISAGGREGATION,
+    EXO_API_KEY,
     EXO_CACHE_HOME,
     EXO_IMAGE_CACHE_DIR,
     EXO_MAX_CHUNK_SIZE,
@@ -303,9 +304,14 @@ class API:
         self.app = FastAPI()
 
         self.app.add_middleware(RequestLogger)
+        # Added last so it runs first: a refused request goes no further
+        self.app.add_middleware(AccessGate, api_key=EXO_API_KEY)
+        if EXO_API_KEY:
+            logger.info("API: other machines can list models and chat with the API key")
+        else:
+            logger.info("API: no EXO_API_KEY set, so only this machine can use the API")
 
         self._setup_exception_handlers()
-        self._setup_cors()
         self._setup_routes()
 
         self.app.mount(
@@ -378,15 +384,6 @@ class API:
             )
         )
         return JSONResponse(err.model_dump(), status_code=exc.status_code)
-
-    def _setup_cors(self) -> None:
-        self.app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["*"],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
 
     def _setup_routes(self) -> None:
         self.app.get("/node_id")(lambda: self.node_id)

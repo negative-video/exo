@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Runs inside the SSH session opened by exo-service.sh, so exo gets the same
-# environment as when it is started by hand (~/.zshrc: HF_TOKEN, PATH).
+# environment as when it is started by hand (~/.zshrc: EXO_API_KEY, PATH).
 
 # These logs are only ever appended to, so keep just the previous run's and start
 # afresh: a record of when the cluster was used shouldn't build up forever. (exo
